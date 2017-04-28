@@ -164,11 +164,39 @@ RoboRIO上的不同接口的作用，在官方文档有很详细的说明。
 **SmartDashboard**是一个图形化的数据窗口。你可以把需要的参数发送在上面,也可以发送一个SendableChooser来选择自动阶段运行的Command。可以在上面显示摄像头反馈的图像。
 
 ### 程序结构
-Sample一般只在测试的时候才会用到，参照TankDrive大致了解一下用法即可。**Command-Based的用法需要仔细学习。**
+Sample一般只在测试的时候才会用到，参照TankDrive大致了解一下用法即可。下面为大体的结构：
 
-Command-Based的Subsystem包主要放一些与硬件模块对应的程序类，这些类没有固定的格式，方法名都是自己定义的。比如一个收球机构，你可以在里面定义一个SpeedController，再定义一个 `start()` 来使SpeedController开始旋转以完成开始收球的动作，一个 `stop()` 来使SpeedController停止旋转以使收球动作停止。你也可以尝试把整个收射球机构写在一个Subsystem里，定义 `shoot()` ， `collect()` ， `blend()` 等大量方法。不过，需要知道的是，**一个Subsystem是不能同时被两个Command访问的**。如果像上面那样写，就意味着收射球机构每次只能被一个Command调用，这样想要使一个Subsystem中的两个部分同时运行不相关的动作，就很难实现；即使实现了，各个Command之间也会混乱不堪。所以，一个Subsystem所包括的范围的选定是极为重要的。这个范围，需要通过实际需要来选定。
+```
+public class RobotTemplate extends SampleRobot {
+    /**
+    * 此方法在每次进入自动阶段时被调用一次。
+    */
+    public void autonomous() {
+        while (isAutonomous() && isEnable()) {
+            // . . .
+            Timer.delay(0.05);
+        }
+    }
+    /**
+    * 此方法在每次进入手动阶段时被调用一次。
+    */
+    public void operatorControl() {
+        while (isOperatorControl() && isEnabled()) {
+            // . . .
+            Timer.delay(0.05);
+        }
+    }
+} 
 
-Command与Subsystem不同，它**有固定的“格式”**。创建后要Override一些固定的方法：
+```
+
+**Command-Based的用法需要仔细学习。**
+
+Command-Based的Subsystem包主要放一些与硬件模块对应的程序类，它们都继承于Subsystem类。这些类没有固定的格式，方法名都是自己定义的。比如一个收球机构，你可以在里面定义一个SpeedController，再定义一个 `start()` 来使SpeedController开始旋转以完成开始收球的动作，一个 `stop()` 来使SpeedController停止旋转以使收球动作停止。你也可以尝试把整个收射球机构写在一个Subsystem里，定义 `shoot()` ， `collect()` ， `blend()` 等大量方法。不过，需要知道的是，**一个Subsystem是不能同时被两个Command访问的**。如果像上面那样写，就意味着收射球机构每次只能被一个Command调用，这样想要使一个Subsystem中的两个部分同时运行不相关的动作，就很难实现；即使实现了，各个Command之间也会混乱不堪。所以，一个Subsystem所包括的范围的选定是极为重要的。这个范围，需要通过实际需要来选定。
+
+Subsystem唯一需要override的方法是 `initDefaultCommand()` 。你可以在里面添加一句 `setDefaultCommand(new XxxCommand());` 来设置此Subsystem的默认Command。它将会 **在该Subsystem空闲时被调用** 。比如，在手动阶段，你想让某Command暂时取得底盘的控制，但如果直接调用这个Command，它会与原有的手动操控Command(DriveWithJoystick)发生冲突。这时候便可以把DriveWithJoystick设置为一个DefaultCommand，再调用你需要的Command，当Command退出后，DriveWithJoystick便会（受到Scheduler的调用而）重新运行起来。
+
+Commands包主要包含一些与机器人动作功能相对应的类，类似对机器人发出的一个“指令”。它们都继承于Command类。Command与Subsystem不同，它**有固定的“格式”**。创建后要override一些固定的方法：
 -  `initialize()` 
 -  `execute()` 
 -  `isFinished()` 
@@ -190,6 +218,9 @@ while(true){
     }
 }
 ```
+如果你想让一个Command直接运行，你可以调用它的 `run()` 方法。
+
+在Command类的构造方法里，要加上一句 `requires(Robot.XxxSubsystem);` 。这一句实际上声明了对于Robot类中实例化的某一个XxxSubsystem的占用。它有点类似线程的占用，只不过当新的Command调用出现时，是将之前的Command interrupt掉并执行当前Command， **而不是** 等待其执行完再执行。但也有某些Command无法被interrupt掉，这时便会自动丢弃掉新的Command不再执行。（以上这些Command管理的动作都是Scheduler完成的。）
 
 Robot和OI类看PacGoat例程的Robot和OI类就能很容易明白。直接照着写即可。
 RobotMap类可有可无，但如果将每个接口的映射关系写在一个类里，维护起来会方便很多。
@@ -218,12 +249,12 @@ RobotMap类可有可无，但如果将每个接口的映射关系写在一个类
 不过这个类没法做到后退以及运动中方向偏转的矫正。尝试实现这些吧！
 
 ### 视觉
-OpenCV的java版资料很少，不过你们可以把网上查到的C++代码直接翻成Java。以后有时间我 **也许** 会对Java的OpenCV API做一点注释，弄一个Java和C++版本用法的对照表:)
+OpenCV的java版资料很少，不过你们可以把网上查到的C++代码直接翻成Java。
 
-**福利：** 附《学习OpenCV》电子版。
+**福利：** 附《学习OpenCV》电子版。(网上很好找，其实。由于版权问题，就不放上来了，需要的发邮件。）
 
 -------
 
 ## Authors:
 
-1. SweetDumpling(<sweetdumpling000@163.com>)
+- SweetDumpling(<sweetdumpling000@163.com>)
