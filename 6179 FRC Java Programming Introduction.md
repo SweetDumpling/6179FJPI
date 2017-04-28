@@ -186,8 +186,7 @@ public class RobotTemplate extends SampleRobot {
             Timer.delay(0.05);
         }
     }
-} 
-
+}
 ```
 
 **Command-Based的用法需要仔细学习。**
